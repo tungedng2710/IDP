@@ -1,0 +1,33 @@
+services:
+  deepseekocr-api-service:
+    image: deepseekocr
+    container_name: deepseekocr-api
+    ports:
+      - "9666:9666"
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - GPU_MEMORY_UTILIZATION=0.7
+    volumes:
+      - deepseekocr-model-cache:/root/.cache/huggingface
+      - ./:/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    restart: unless-stopped
+    entrypoint:  ['sh', '-c', 'python3 api_service.py']
+
+    networks:
+      - deepseekocr-default
+    
+
+volumes:
+  deepseekocr-model-cache:
+
+networks:
+  deepseekocr-default:
+    driver: bridge

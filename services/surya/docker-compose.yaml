@@ -1,0 +1,23 @@
+services:
+  surya-api-service:
+    image: surya:latest
+    container_name: surya-api
+    ports:
+      - "7879:9669"
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - surya-model-cache:/root/.cache/datalab
+      - ./:/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    restart: unless-stopped
+    command: ["sh", "-c", "python3 api_service.py"]
+volumes:
+  surya-model-cache:

@@ -1,0 +1,33 @@
+services:
+  
+  mineru-api-service:
+    image: mineru
+    container_name: mineru-api
+    ports:
+      - "9668:9668"
+    environment:
+      - CUDA_VISIBLE_DEVICES=1
+      - GPU_MEMORY_UTILIZATION=0.4
+    volumes:
+      - mineru-model-cache:/root/.cache/huggingface
+      - ./:/app
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    restart: unless-stopped
+    entrypoint:  ['sh', '-c', 'python3 api_service.py']
+    
+    networks:
+      - mineru-default
+
+volumes:
+  mineru-model-cache:
+
+networks:
+  mineru-default:
+    driver: bridge

@@ -1,0 +1,61 @@
+services:
+  vllm-dots-ocr:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-dots-ocr
+    ports:
+      - "8000:8000"
+    shm_size: '1g'
+    environment:
+      - CUDA_VISIBLE_DEVICES=1
+    volumes:
+      - model-cache:/root/.cache/huggingface
+    entrypoint: ["vllm", "serve", "rednote-hilab/dots.ocr", "--trust-remote-code", "--async-scheduling", "--gpu-memory-utilization", "0.65", "--host", "0.0.0.0", "--port", "8000", "--mm-processor-cache-gb", "0"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - dotsocr-default
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 580s
+
+  api-service:
+    image: dotsocr_api
+    container_name: dots-ocr-api
+    ports:
+      - "7877:9667"
+    environment:
+      - VLLM_IP=vllm-dots-ocr
+      - VLLM_PORT=8000
+      - MODEL_NAME=rednote-hilab/dots.ocr
+      - PYTHON_PATH=/app/dots.ocr:$PYTHON_PATH
+    depends_on:
+      vllm-dots-ocr:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    entrypoint:  ['sh', '-c', 'python api_service.py']
+    restart: unless-stopped
+    networks:
+      - dotsocr-default
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9667/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  model-cache:
+
+networks:
+  dotsocr-default:
+    driver: bridge
