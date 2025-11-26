@@ -151,3 +151,5 @@ output*/
 extractor/unused*
 extractor/test*
 extractor/paddle
+web_uploads/
+web_outputs/

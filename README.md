@@ -104,3 +104,20 @@ Behavior:
 - Processes `page_footer` elements unless OCR returns fewer than 3 digits, which are treated as page numbers and dropped.
 - For tables, copies the `.html` into the merged Markdown and does not OCR.
 - For all other categories, runs Marker on each crop, writes `<crop>.md` next to the PNG, and merges content in page/element order.
+
+### FastAPI Web UI (Port 7876)
+
+A lightweight FastAPI application in `app/app.py` wraps `run_pipeline.sh` with a drag-and-drop style interface that previews the generated Markdown.
+
+1. Install the web dependencies:
+   ```bash
+   pip install fastapi uvicorn python-multipart markdown
+   ```
+2. Make sure any OCR services expected by `run_pipeline.sh` (e.g., DotsOCR + table API) are running.
+3. Launch the server on the requested port:
+   ```bash
+   uvicorn app.app:app --host 0.0.0.0 --port 7876
+   ```
+4. Visit `http://localhost:7876` and upload a PDF. The UI streams the Markdown preview (rendered via the `markdown` package) along with stdout/stderr from the script for quick debugging.
+
+Uploads and generated Markdown files are kept under `web_uploads/` and `web_outputs/` respectively and are cleaned up after each run.

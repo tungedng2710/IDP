@@ -159,10 +159,10 @@ class LayoutProcessor:
         category = str(detection.get("category", "")).strip().lower()
         if category == "table":
             expand = self.table_crop_expand_px
-            white_pad_axes = (False, False)
+            white_pad_axes = (False, expand[1] > 2)
         else:
             expand = self.crop_expand_px
-            white_pad_axes = (expand[0] > 2, expand[1] > 2)
+            white_pad_axes = (False, expand[1] > 2)
         return self._extract_expanded_crop(image, bbox, expand, white_pad_axes)
 
     def _save_table_html(self, crop_output_path: Path, crop: np.ndarray) -> None:
