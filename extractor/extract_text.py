@@ -198,7 +198,7 @@ except ModuleNotFoundError:  # pragma: no cover - script execution fallback
 # DEFAULT_API_URL = getattr(dotocr, "DEFAULT_URL", "http://localhost:9666/extract")
 DEFAULT_API_URL = "http://localhost:9666/extract"
 
-DEFAULT_SKIP_CATEGORIES = {"page_footer", "picture"}
+DEFAULT_SKIP_CATEGORIES = {"picture"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
 
 
@@ -330,8 +330,12 @@ def extract_page_markdown(
         if md_path:
             write_markdown_file(md_path, markdown)
 
-        if markdown.strip():
-            parts.append(markdown.strip())
+        cleaned = markdown.strip()
+        if category == "page_footer" and len(cleaned) < 3 and cleaned.isdigit():
+            continue
+
+        if cleaned:
+            parts.append(cleaned)
 
     return parts
 
@@ -391,7 +395,7 @@ def parse_args() -> argparse.Namespace:
         "--skip-category",
         action="append",
         default=list(DEFAULT_SKIP_CATEGORIES),
-        help="Element category to skip entirely. Defaults to page_footer.",
+        help="Element category to skip entirely. Defaults to picture.",
     )
     return parser.parse_args()
 

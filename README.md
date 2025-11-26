@@ -96,12 +96,11 @@ If you already have DotsOCR crops, run the extractor directly:
 
 ```bash
 python extractor/extract_text.py outputs/curated_mwg2025_pages/pages \
-  --skip-category page_footer \
-  --skip-category picture \
   --output outputs/curated_mwg2025_pages/pages/document.md
 ```
 
 Behavior:
-- Skips `page_footer` and `picture` by default; add `--skip-category <name>` to ignore more.
+- Skips `picture` by default; add `--skip-category <name>` to ignore more.
+- Processes `page_footer` elements unless OCR returns fewer than 3 digits, which are treated as page numbers and dropped.
 - For tables, copies the `.html` into the merged Markdown and does not OCR.
 - For all other categories, runs Marker on each crop, writes `<crop>.md` next to the PNG, and merges content in page/element order.
