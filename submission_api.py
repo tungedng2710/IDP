@@ -150,7 +150,7 @@ async def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/process")
+@app.post("/parse")
 async def process_pdf(file: UploadFile = File(...)) -> Dict[str, Any]:
     """Accept an upload, ensure it is a PDF (converting if needed), and return merged markdown."""
     try:

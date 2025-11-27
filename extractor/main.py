@@ -76,7 +76,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--dotocr-base-url",
-        default="http://localhost:7877",
+        default="http://localhost:9667",
         help="Base URL for the Surya OCR service.",
     )
     parser.add_argument(
