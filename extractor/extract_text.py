@@ -196,7 +196,7 @@ except ModuleNotFoundError:  # pragma: no cover - script execution fallback
     import extractor.unused_extract_text_dotocr as dotocr  # type: ignore
 
 # DEFAULT_API_URL = getattr(dotocr, "DEFAULT_URL", "http://localhost:9666/extract")
-DEFAULT_API_URL = "http://localhost:9667/extract"
+DEFAULT_API_URL = "http://localhost:9666/extract"
 
 DEFAULT_SKIP_CATEGORIES = {"picture"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
