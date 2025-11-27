@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  chandra-api-service:
+    image: chandra_api
+    container_name: chandra-api
+    build:
+      context: ../..
+      dockerfile: services/chandra_api/Dockerfile
+    ports:
+      - "9670:9670"
+    restart: unless-stopped

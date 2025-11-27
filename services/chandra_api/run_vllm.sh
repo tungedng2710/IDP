@@ -1,4 +1,4 @@
-docker run --runtime nvidia --gpus="device=1" -dit \
+docker run --runtime nvidia --gpus="device=0" -dit \
   --name chandra_api \
   -v /root/.cache/huggingface:/root/.cache/huggingface \
   -e VLLM_ATTENTION_BACKEND=TORCH_SDPA \

@@ -31,7 +31,7 @@ services:
     image: dotsocr_api
     container_name: dots-ocr-api
     ports:
-      - "7877:9667"
+      - "9667:9667"
     environment:
       - VLLM_IP=vllm-dots-ocr
       - VLLM_PORT=8000
