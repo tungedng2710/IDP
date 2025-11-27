@@ -139,6 +139,7 @@ runs
 *beta*
 *.engine
 *.sh
+!run_pipeline.sh
 lib_pponnxcr
 test*
 webapp/rtsp_url.json
