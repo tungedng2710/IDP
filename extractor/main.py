@@ -92,7 +92,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--page-zoom",
         type=float,
-        default=2.0,
+        default=1.5,
         help="Scale factor when rendering PDF pages to images for DotsOCR.",
     )
     parser.add_argument(
@@ -109,7 +109,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def render_pdf_to_images(
-    pdf_path: Path, output_dir: Path, zoom: float = 2.0, remove_stamps: bool = False
+    pdf_path: Path, output_dir: Path, zoom: float = 1.5, remove_stamps: bool = False
 ) -> list[Path]:
     """Render each page of a PDF to PNG images."""
 
@@ -118,10 +118,17 @@ def render_pdf_to_images(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     image_paths: list[Path] = []
-    matrix = fitz.Matrix(zoom, zoom)
+
     with fitz.open(pdf_path) as doc:
         for page in doc:
             image_path = output_dir / f"{pdf_path.stem}_{page.number + 1:03d}.png"
+            pix = page.get_pixmap(alpha=False)
+            pix_width, pix_height = pix.width, pix.height
+            # Get max dimension 
+            max_dim = max(pix_width, pix_height)
+            # Calculate scaling factor
+            scale = 1800 / max_dim
+            matrix = fitz.Matrix(scale, scale)
             pix = page.get_pixmap(matrix=matrix, alpha=False)
 
             if remove_stamps:
