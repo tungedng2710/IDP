@@ -9,14 +9,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir \
-        fastapi \
-        uvicorn[standard] \
-        python-multipart \
-        pillow \
-        opencv-python \
-        PyMuPDF \
-        dataclasses
+COPY requirements.txt /tmp/requirements.txt
+
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY . .
 
