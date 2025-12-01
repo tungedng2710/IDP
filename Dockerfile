@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir \
         python-multipart \
         pillow \
         opencv-python \
+        PyMuPDF \
         dataclasses
 
 COPY . .
