@@ -124,7 +124,7 @@ def render_pdf_to_images(
             image_path = output_dir / f"{pdf_path.stem}_{page.number + 1:03d}.png"
             pix = page.get_pixmap(alpha=False)
             pix_width, pix_height = pix.width, pix.height
-            # Get max dimension 
+            # Keep the longest side close to 1800 px so DotsOCR sees consistent resolution.
             max_dim = max(pix_width, pix_height)
             # Calculate scaling factor
             scale = 1800 / max_dim

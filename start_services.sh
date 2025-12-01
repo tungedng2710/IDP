@@ -14,9 +14,26 @@ PIPELINE_IMAGE="${PIPELINE_IMAGE:-idp_pipeline}"
 DOTSOCR_MODEL_VOLUME="${DOTSOCR_MODEL_VOLUME:-dotsocr-model-cache}"
 DEEPSEEKOCR_MODEL_VOLUME="${DEEPSEEKOCR_MODEL_VOLUME:-deepseekocr-model-cache}"
 
-CHANDRA_GPU_FLAG="${CHANDRA_GPU_FLAG:---gpus all}"
-DOTSOCR_VLLM_GPU_FLAG="${DOTSOCR_VLLM_GPU_FLAG:---gpus all}"
-DEEPSEEKOCR_GPU_FLAG="${DEEPSEEKOCR_GPU_FLAG:---gpus all}"
+if [[ -n "${CHANDRA_GPU_FLAG+x}" ]]; then
+  CHANDRA_GPU_FLAG_USER_SET=1
+else
+  CHANDRA_GPU_FLAG="--gpus all"
+  CHANDRA_GPU_FLAG_USER_SET=0
+fi
+
+if [[ -n "${DOTSOCR_VLLM_GPU_FLAG+x}" ]]; then
+  DOTSOCR_VLLM_GPU_FLAG_USER_SET=1
+else
+  DOTSOCR_VLLM_GPU_FLAG="--gpus all"
+  DOTSOCR_VLLM_GPU_FLAG_USER_SET=0
+fi
+
+if [[ -n "${DEEPSEEKOCR_GPU_FLAG+x}" ]]; then
+  DEEPSEEKOCR_GPU_FLAG_USER_SET=1
+else
+  DEEPSEEKOCR_GPU_FLAG="--gpus all"
+  DEEPSEEKOCR_GPU_FLAG_USER_SET=0
+fi
 
 DOTSOCR_VISIBLE_GPUS="${DOTSOCR_VISIBLE_GPUS:-1}"
 DEEPSEEKOCR_VISIBLE_GPUS="${DEEPSEEKOCR_VISIBLE_GPUS:-0}"
@@ -47,6 +64,49 @@ split_words() {
   fi
   # shellcheck disable=SC2206
   target=($value)
+}
+
+gpu_runtime_available() {
+  local force_cpu="${FORCE_CPU_MODE:-}"
+  local force_cpu_lc="${force_cpu,,}"
+  if [[ "$force_cpu_lc" == "1" || "$force_cpu_lc" == "true" || "$force_cpu_lc" == "yes" ]]; then
+    return 1
+  fi
+
+  local runtimes
+  if ! runtimes=$(docker info --format '{{json .Runtimes}}' 2>/dev/null); then
+    return 1
+  fi
+
+  if [[ -n "$runtimes" ]] && command -v nvidia-smi >/dev/null 2>&1 && grep -q '"nvidia"' <<<"$runtimes"; then
+    return 0
+  fi
+  return 1
+}
+
+configure_gpu_flags() {
+  if gpu_runtime_available; then
+    log "Detected NVIDIA GPU runtime; requesting GPU access for services."
+    return
+  fi
+
+  local force_cpu="${FORCE_CPU_MODE:-}"
+  if [[ -n "$force_cpu" ]]; then
+    log "FORCE_CPU_MODE=$force_cpu -> starting services without GPU acceleration."
+  else
+    log "Warning: NVIDIA GPU runtime not detected. Starting services without '--gpus' flags."
+    log "Set FORCE_CPU_MODE=1 to skip detection or install NVIDIA Container Toolkit to re-enable GPUs."
+  fi
+
+  if (( ! CHANDRA_GPU_FLAG_USER_SET )); then
+    CHANDRA_GPU_FLAG=""
+  fi
+  if (( ! DOTSOCR_VLLM_GPU_FLAG_USER_SET )); then
+    DOTSOCR_VLLM_GPU_FLAG=""
+  fi
+  if (( ! DEEPSEEKOCR_GPU_FLAG_USER_SET )); then
+    DEEPSEEKOCR_GPU_FLAG=""
+  fi
 }
 
 ensure_network() {
@@ -194,6 +254,7 @@ start_pipeline_api() {
 
 main() {
   require_command docker
+  configure_gpu_flags
   ensure_network "$NETWORK_NAME"
 
   build_image "$CHANDRA_IMAGE" "$CHANDRA_DIR/Dockerfile" "$ROOT_DIR"
