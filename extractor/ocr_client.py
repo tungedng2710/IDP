@@ -1,4 +1,4 @@
-"""HTTP client helpers for Surya OCR and table recognition endpoints."""
+"""HTTP client helpers for OCR and table recognition endpoints."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ ImageInput = Union[np.ndarray, Image.Image, str]
 
 
 @dataclass
-class DotsOCRClient:
-    """Convenience wrapper around the Surya OCR REST API."""
+class OCRServiceClient:
+    """Convenience wrapper around a generic OCR REST API."""
 
     base_url: str = "http://localhost:9667"
     table_url: Optional[str] = "http://localhost:9671/get-table"
@@ -136,7 +136,7 @@ class DotsOCRClient:
             return html_text or None
         if isinstance(payload, (list, tuple)):
             for item in payload:
-                html_text = DotsOCRClient._extract_table_html_from_payload(item)
+                html_text = OCRServiceClient._extract_table_html_from_payload(item)
                 if html_text:
                     return html_text
             return None
@@ -144,11 +144,11 @@ class DotsOCRClient:
             preferred_keys = ("html", "result", "data", "table", "content", "value")
             for key in preferred_keys:
                 if key in payload:
-                    html_text = DotsOCRClient._extract_table_html_from_payload(payload[key])
+                    html_text = OCRServiceClient._extract_table_html_from_payload(payload[key])
                     if html_text:
                         return html_text
             for value in payload.values():
-                html_text = DotsOCRClient._extract_table_html_from_payload(value)
+                html_text = OCRServiceClient._extract_table_html_from_payload(value)
                 if html_text:
                     return html_text
         return None
@@ -164,12 +164,12 @@ class DotsOCRClient:
 
         if "results" in payload and isinstance(payload["results"], list):
             return [
-                DotsOCRClient._collect_line_text(item) for item in payload["results"]
+                OCRServiceClient._collect_line_text(item) for item in payload["results"]
             ]
         if "result" in payload:
-            return [DotsOCRClient._collect_line_text(payload["result"])]
+            return [OCRServiceClient._collect_line_text(payload["result"])]
         if "text_lines" in payload:
-            return [DotsOCRClient._collect_line_text(payload)]
+            return [OCRServiceClient._collect_line_text(payload)]
         return []
 
     @staticmethod

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI entrypoint for running layout extraction with DotsOCR."""
+"""CLI entrypoint for running layout extraction via a generic OCR service."""
 
 from __future__ import annotations
 
@@ -10,16 +10,16 @@ from typing import Optional
 
 try:
     from extractor.layout_processor import DEFAULT_TEMP_OUTPUT_DIR, LayoutProcessor
-    from extractor.ocr_client import DotsOCRClient
+    from extractor.ocr_client import OCRServiceClient
 except ModuleNotFoundError:  # pragma: no cover - script execution fallback
     current_dir = Path(__file__).resolve().parent
     parent_dir = current_dir.parent
     if str(parent_dir) not in sys.path:
         sys.path.insert(0, str(parent_dir))
     from extractor.layout_processor import DEFAULT_TEMP_OUTPUT_DIR, LayoutProcessor
-    from extractor.ocr_client import DotsOCRClient
+    from extractor.ocr_client import OCRServiceClient
 
-__all__ = ["DotsOCRClient", "LayoutProcessor"]
+__all__ = ["OCRServiceClient", "LayoutProcessor"]
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,12 +55,12 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_client(base_url: str, table_url: Optional[str]) -> DotsOCRClient:
+def build_client(base_url: str, table_url: Optional[str]) -> OCRServiceClient:
     clean_table_url = table_url.strip() if table_url else None
-    return DotsOCRClient(base_url=base_url, table_url=clean_table_url)
+    return OCRServiceClient(base_url=base_url, table_url=clean_table_url)
 
 
-def build_processor(client: DotsOCRClient, output_dir: Optional[str], quiet: bool) -> LayoutProcessor:
+def build_processor(client: OCRServiceClient, output_dir: Optional[str], quiet: bool) -> LayoutProcessor:
     resolved_output = Path(output_dir).expanduser().resolve() if output_dir else None
     return LayoutProcessor(client=client, output_dir=resolved_output, verbose=not quiet)
 

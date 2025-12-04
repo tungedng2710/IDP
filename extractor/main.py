@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regularize PDF orientation, then run layout extraction via DotsOCR."""
+"""Regularize PDF orientation, then run layout extraction via an OCR service."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
 from extractor.preprocess import build_orientation_map, regularize_pdf
-from extractor.dotocr import build_client, build_processor
+from extractor.ocr_service import build_client, build_processor
 from extractor.extract_text import DEFAULT_SKIP_CATEGORIES, extract_markdown
 from extractor.remove_stamp import remove_stamp
 
@@ -27,7 +27,7 @@ from extractor.remove_stamp import remove_stamp
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Regularize a PDF by rotating pages so that orientation is 0°, then run DotsOCR "
+            "Regularize a PDF by rotating pages so that orientation is 0°, then run OCR "
             "layout extraction on the curated pages."
         )
     )
@@ -54,38 +54,38 @@ def parse_args() -> argparse.Namespace:
         help="Batch size used when running orientation classification.",
     )
     parser.add_argument(
-        "--skip-dotocr",
+        "--skip-ocr",
         action="store_true",
         help="Only regularize the PDF; skip running layout extraction.",
     )
     parser.add_argument(
         "--remove-stamp",
         action="store_true",
-        help="Remove stamps from pages before running DotsOCR.",
+        help="Remove stamps from pages before running OCR layout extraction.",
     )
     parser.add_argument(
         "--pages-dir",
         type=Path,
-        help="Directory where rendered page images are stored before running DotsOCR.",
+        help="Directory where rendered page images are stored before running OCR layout extraction.",
     )
     parser.add_argument(
-        "--dotocr-output-dir",
+        "--ocr-output-dir",
         type=Path,
         default=Path("outputs"),
-        help="Base directory to store DotsOCR outputs (annotated pages and crops).",
+        help="Base directory to store OCR outputs (annotated pages and crops).",
     )
     parser.add_argument(
-        "--dotocr-base-url",
+        "--ocr-base-url",
         default="http://localhost:9667",
         help="Base URL for the Surya OCR service.",
     )
     parser.add_argument(
-        "--dotocr-table-url",
+        "--ocr-table-url",
         default="http://localhost:9670/chandra/extract",
         help="Full URL for the table recognition API (empty string to disable).",
     )
     parser.add_argument(
-        "--dotocr-quiet",
+        "--ocr-quiet",
         action="store_true",
         help="Silence layout extraction logs.",
     )
@@ -93,7 +93,7 @@ def parse_args() -> argparse.Namespace:
         "--page-zoom",
         type=float,
         default=1.5,
-        help="Scale factor when rendering PDF pages to images for DotsOCR.",
+        help="Scale factor when rendering PDF pages to images before OCR extraction.",
     )
     parser.add_argument(
         "--extract-markdown",
@@ -103,7 +103,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--markdown-output",
         type=Path,
-        help="Destination for merged markdown when --extract-markdown is used. Defaults to document.md under the DotsOCR output root.",
+        help="Destination for merged markdown when --extract-markdown is used. Defaults to document.md under the OCR output root.",
     )
     return parser.parse_args()
 
@@ -124,7 +124,7 @@ def render_pdf_to_images(
             image_path = output_dir / f"{pdf_path.stem}_{page.number + 1:03d}.png"
             pix = page.get_pixmap(alpha=False)
             pix_width, pix_height = pix.width, pix.height
-            # Keep the longest side close to 1800 px so DotsOCR sees consistent resolution.
+            # Keep the longest side close to 1800 px so the OCR service sees consistent resolution.
             max_dim = max(pix_width, pix_height)
             # Calculate scaling factor
             scale = 1800 / max_dim
@@ -166,30 +166,31 @@ def main() -> None:
         f"of {stats['total_pages']} pages."
     )
 
-    if args.skip_dotocr:
-        if args.extract_markdown:
-            raise SystemExit("--extract-markdown requires DotsOCR outputs; remove --skip-dotocr.")
-        return
-
     pages_dir = (args.pages_dir or output_pdf.with_name(f"{output_pdf.stem}_pages")).resolve()
     images = render_pdf_to_images(
         output_pdf, pages_dir, zoom=args.page_zoom, remove_stamps=args.remove_stamp
     )
     if not images:
-        print(f"No pages rendered from {output_pdf}; skipping DotsOCR.")
+        print(f"No pages rendered from {output_pdf}; skipping OCR extraction.")
         return
 
-    dotocr_output_dir = args.dotocr_output_dir.expanduser().resolve()
-    if dotocr_output_dir.exists() and not dotocr_output_dir.is_dir():
+    if args.skip_ocr:
+        if args.extract_markdown:
+            raise SystemExit("--extract-markdown requires OCR outputs; remove --skip-ocr.")
+        print(f"Rendered {len(images)} page images under {pages_dir}.")
+        return
+
+    ocr_output_dir = args.ocr_output_dir.expanduser().resolve()
+    if ocr_output_dir.exists() and not ocr_output_dir.is_dir():
         raise NotADirectoryError(
-            f"DotsOCR output base exists and is not a directory: {dotocr_output_dir}"
+            f"OCR output base exists and is not a directory: {ocr_output_dir}"
         )
 
-    client = build_client(args.dotocr_base_url, args.dotocr_table_url)
-    processor = build_processor(client, dotocr_output_dir, args.dotocr_quiet)
+    client = build_client(args.ocr_base_url, args.ocr_table_url)
+    processor = build_processor(client, ocr_output_dir, args.ocr_quiet)
     processor.process_folder(pages_dir)
-    output_root = (processor.output_dir or dotocr_output_dir) / pages_dir.name
-    print(f"DotsOCR results written under {output_root}.")
+    output_root = (processor.output_dir or ocr_output_dir) / pages_dir.name
+    print(f"OCR results written under {output_root}.")
 
     if args.extract_markdown:
         markdown_output = args.markdown_output or (output_root / "document.md")

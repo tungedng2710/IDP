@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert DotsOCR crop outputs into per-element Markdown and a merged document."""
+"""Convert OCR crop outputs into per-element Markdown and a merged document."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence
-import re
-from typing import List, Tuple
+from typing import Any, Iterable, List, Optional, Sequence, Tuple
+
+import requests
 
 
 def remove_repetition(text: str, 
@@ -186,20 +186,65 @@ def standardize_deepseekocr_extract_label(data):
     cleaned_lines = [m.strip() for m in matches if m.strip()]
     return remove_repetition("\n".join(cleaned_lines))
 
-try:
-    import extractor.unused_extract_text_dotocr as dotocr
-except ModuleNotFoundError:  # pragma: no cover - script execution fallback
-    current_dir = Path(__file__).resolve().parent
-    parent_dir = current_dir.parent
-    if str(parent_dir) not in sys.path:
-        sys.path.insert(0, str(parent_dir))
-    import extractor.unused_extract_text_dotocr as dotocr  # type: ignore
-
-# DEFAULT_API_URL = getattr(dotocr, "DEFAULT_URL", "http://localhost:9666/extract")
 DEFAULT_API_URL = "http://localhost:9666/extract"
 
 DEFAULT_SKIP_CATEGORIES = {"picture"}
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+
+
+def _collect_ocr_line_text(block: Any) -> List[str]:
+    if not isinstance(block, dict):
+        return []
+    lines: List[str] = []
+    for line in block.get("text_lines") or []:
+        text = ""
+        if isinstance(line, dict):
+            text = str(line.get("text", "")).strip()
+        else:
+            text = str(line).strip()
+        if text:
+            lines.append(text)
+    return lines
+
+
+def extract_ocr_text(payload: Any) -> List[str]:
+    """Best-effort extraction of text lines from the OCR response."""
+
+    if not isinstance(payload, dict):
+        return [str(payload).strip()] if payload else []
+
+    texts: List[str] = []
+
+    if isinstance(payload.get("results"), list):
+        for item in payload["results"]:
+            texts.extend(extract_ocr_text(item))
+
+    result = payload.get("result")
+    if isinstance(result, dict):
+        texts.extend(_collect_ocr_line_text(result))
+    elif isinstance(result, list):
+        for item in result:
+            texts.extend(_collect_ocr_line_text(item))
+    elif result:
+        texts.append(str(result).strip())
+
+    if not texts and isinstance(payload.get("text_lines"), list):
+        texts.extend(_collect_ocr_line_text(payload))
+
+    return texts
+
+
+def call_ocr_api(api_url: str, image_path: Path) -> dict:
+    resolved = image_path.expanduser().resolve()
+    if not resolved.exists():
+        raise FileNotFoundError(f"Image not found: {resolved}")
+
+    with resolved.open("rb") as handle:
+        files = {"file": (resolved.name, handle, "application/octet-stream")}
+        response = requests.post(api_url, files=files)
+
+    response.raise_for_status()
+    return response.json()
 
 
 @dataclass
@@ -277,8 +322,8 @@ def collect_page_elements(page_dir: Path) -> List[CropElement]:
 
 def image_to_markdown(image_path: Path, api_url: str) -> str:
     """Run dots.ocr on a single crop image and return markdown text."""
-    response = dotocr.call_api(api_url, image_path)
-    text_lines = dotocr.extract_text(response)
+    response = call_ocr_api(api_url, image_path)
+    text_lines = extract_ocr_text(response)
     if isinstance(text_lines, list):
         content = "\n".join(line.strip() for line in text_lines if str(line).strip()).strip()
         return standardize_deepseekocr_extract_label(content)
@@ -320,11 +365,7 @@ def extract_page_markdown(
             print(f"[warn] Missing image for {element.category} {element.index:04d} in {page_dir}", file=sys.stderr)
             continue
 
-        try:
-            markdown = image_to_markdown(element.image_path, api_url)
-        except Exception as exc:  # pragma: no cover - model IO
-            print(f"[error] Failed to extract {element.image_path}: {exc}", file=sys.stderr)
-            markdown = ""
+        markdown = image_to_markdown(element.image_path, api_url)
 
         md_path = element.markdown_path
         if md_path:
@@ -378,7 +419,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "layout_root",
         type=Path,
-        help="DotsOCR output directory that contains the pages/ folder (or the pages folder itself).",
+        help="OCR output directory that contains the pages/ folder (or the pages folder itself).",
     )
     parser.add_argument(
         "-o",
@@ -389,7 +430,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--api-url",
         default=DEFAULT_API_URL,
-        help="Full dots.ocr /get-text endpoint (default: http://localhost:7877/get-text).",
+        help="Full OCR /get-text endpoint (default: http://localhost:7877/get-text).",
     )
     parser.add_argument(
         "--skip-category",

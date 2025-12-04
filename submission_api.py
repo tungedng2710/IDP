@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FastAPI service that runs the DotsOCR pipeline on uploaded PDFs."""
+"""FastAPI service that runs the OCR pipeline on uploaded PDFs."""
 
 from __future__ import annotations
 

@@ -13,10 +13,10 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from .ocr_client import DotsOCRClient
+from .ocr_client import OCRServiceClient
 
 VALID_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
-DEFAULT_TEMP_OUTPUT_DIR = Path(tempfile.gettempdir()) / "dotocr_pages"
+DEFAULT_TEMP_OUTPUT_DIR = Path(tempfile.gettempdir()) / "ocr_pages"
 PAGE_FOLDER_PREFIX = "page_"
 CROP_ELEMENTS_DIRNAME = "crop_elements"
 ANNOTATED_FILENAME = "annotated.png"
@@ -27,7 +27,7 @@ PAGES_DIRNAME = "pages"
 class LayoutProcessor:
     """Reusable pipeline for extracting layouts and saving crops."""
 
-    client: DotsOCRClient
+    client: OCRServiceClient
     output_dir: Optional[Path] = None
     crop_expand_px: Tuple[int, int] = (30, 30)
     table_crop_expand_px: Tuple[int, int] = (5, 5)
@@ -77,13 +77,13 @@ class LayoutProcessor:
         base_dir = self.output_dir or DEFAULT_TEMP_OUTPUT_DIR
         if base_dir.exists() and not base_dir.is_dir():
             raise NotADirectoryError(
-                f"DotOCR output base exists and is not a directory: {base_dir}"
+                f"OCR output base exists and is not a directory: {base_dir}"
             )
 
         doc_dir = base_dir / document_name
         if doc_dir.exists() and not doc_dir.is_dir():
             raise NotADirectoryError(
-                f"DotOCR document path exists and is not a directory: {doc_dir}"
+                f"OCR document path exists and is not a directory: {doc_dir}"
             )
 
         pages_root = doc_dir / PAGES_DIRNAME

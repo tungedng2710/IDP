@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PDF_PATH=${1:-${PDF_PATH:-/root/tungn197/IDP/test_samples/curated_mwg2025_pages_pdf/curated_mwg2025_020.pdf}}
-MARKDOWN_OUTPUT=${2:-${MARKDOWN_OUTPUT:-/root/tungn197/IDP/outputs_test/final_document.md}}
-DOT_OCR_BASE_URL=${DOT_OCR_BASE_URL:-http://localhost:9667}
-DOT_OCR_TABLE_URL=${DOT_OCR_TABLE_URL:-http://localhost:9670/chandra/extract}
+PDF_PATH=${1:-${PDF_PATH:-test_samples/mwg2025.pdf}}
+MARKDOWN_OUTPUT=${2:-${MARKDOWN_OUTPUT:-}}
+REMOVE_STAMP=${REMOVE_STAMP:-1}
 
-mkdir -p "$(dirname "$MARKDOWN_OUTPUT")"
+cmd=(python extractor/main.py "$PDF_PATH" --extract-markdown)
 
-python extractor/main.py "$PDF_PATH" \
-  --dotocr-base-url "$DOT_OCR_BASE_URL" \
-  --dotocr-table-url "$DOT_OCR_TABLE_URL" \
-  --extract-markdown \
-  --remove-stamp \
-  --markdown-output "$MARKDOWN_OUTPUT"
+if [[ "$REMOVE_STAMP" == "1" ]]; then
+  cmd+=(--remove-stamp)
+fi
+
+if [[ -n "$MARKDOWN_OUTPUT" ]]; then
+  mkdir -p "$(dirname "$MARKDOWN_OUTPUT")"
+  cmd+=(--markdown-output "$MARKDOWN_OUTPUT")
+fi
+
+"${cmd[@]}"
