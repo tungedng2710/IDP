@@ -6,4 +6,5 @@ numpy==2.1.2
 opencv-python-headless==4.11.0.86
 PyMuPDF==1.26.6
 paddleocr==3.3.0
+nvidia-ml-py
 requests==2.32.3

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
-
+import tqdm
 import fitz  # PyMuPDF
 
 _CLASS_ID_TO_DEGREES = {

@@ -1,4 +1,4 @@
-"""HTTP client helpers for OCR and table recognition endpoints."""
+"""HTTP client helpers for the OCR layout service."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import base64
 import io
 import json
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, Sequence, Union
 
 import numpy as np
 import requests
@@ -20,7 +20,6 @@ class OCRServiceClient:
     """Convenience wrapper around a generic OCR REST API."""
 
     base_url: str = "http://localhost:9667"
-    table_url: Optional[str] = "http://localhost:9671/get-table"
     session: requests.Session = field(default_factory=requests.Session)
 
     def detect(self, image: Union[ImageInput, Sequence[ImageInput]]) -> Dict[str, Any]:
@@ -32,49 +31,6 @@ class OCRServiceClient:
         """Call the get-layout endpoint for a single image or batch."""
 
         return self._post_to_base("get-layout", image)
-
-    def recognize(self, image: Union[ImageInput, Sequence[ImageInput]]) -> Dict[str, Any]:
-        """Call the get-text endpoint for a single image or batch."""
-
-        return self._post_to_base("get-text", image)
-
-    def recognize_text(
-        self, image: Union[ImageInput, Sequence[ImageInput]]
-    ) -> Union[str, List[str]]:
-        """
-        Run recognition and return plain text.
-
-        A single image input yields a single string; batches return a list of strings in
-        the same order as the input images.
-        """
-
-        response = self.recognize(image)
-        texts = self._parse_text_response(response)
-        if isinstance(image, (list, tuple)):
-            return texts
-        return texts[0] if texts else ""
-
-    def recognize_table(self, image: ImageInput) -> Optional[str]:
-        """Call the table recognition endpoint and normalize the HTML output."""
-
-        if not self.table_url:
-            return None
-
-        payload = {"image": self._to_base64(image)}
-        response = self.session.post(self.table_url, data=payload)
-        response.raise_for_status()
-        try:
-            data = response.json()
-        except ValueError:
-            fallback = response.text.strip()
-            return fallback or None
-
-        html_text = self._extract_table_html_from_payload(data)
-        if html_text:
-            return html_text
-
-        fallback = response.text.strip()
-        return fallback or None
 
     def _post_to_base(
         self,
@@ -126,66 +82,3 @@ class OCRServiceClient:
         img.save(buffer, format="PNG")
         buffer.seek(0)
         return base64.b64encode(buffer.read()).decode("utf-8")
-
-    @staticmethod
-    def _extract_table_html_from_payload(payload: Any) -> Optional[str]:
-        if payload is None:
-            return None
-        if isinstance(payload, str):
-            html_text = payload.strip()
-            return html_text or None
-        if isinstance(payload, (list, tuple)):
-            for item in payload:
-                html_text = OCRServiceClient._extract_table_html_from_payload(item)
-                if html_text:
-                    return html_text
-            return None
-        if isinstance(payload, dict):
-            preferred_keys = ("html", "result", "data", "table", "content", "value")
-            for key in preferred_keys:
-                if key in payload:
-                    html_text = OCRServiceClient._extract_table_html_from_payload(payload[key])
-                    if html_text:
-                        return html_text
-            for value in payload.values():
-                html_text = OCRServiceClient._extract_table_html_from_payload(value)
-                if html_text:
-                    return html_text
-        return None
-
-    @staticmethod
-    def _parse_text_response(payload: Dict[str, Any]) -> List[str]:
-        """Normalize recognition responses into a list of newline-joined strings."""
-
-        if not payload:
-            return []
-        if not isinstance(payload, dict):
-            return []
-
-        if "results" in payload and isinstance(payload["results"], list):
-            return [
-                OCRServiceClient._collect_line_text(item) for item in payload["results"]
-            ]
-        if "result" in payload:
-            return [OCRServiceClient._collect_line_text(payload["result"])]
-        if "text_lines" in payload:
-            return [OCRServiceClient._collect_line_text(payload)]
-        return []
-
-    @staticmethod
-    def _collect_line_text(block: Any) -> str:
-        """Join the text_line entries from a recognition result."""
-
-        if not isinstance(block, dict):
-            return ""
-        lines: List[str] = []
-        for line in block.get("text_lines") or []:
-            text_val = ""
-            if isinstance(line, dict):
-                text_val = line.get("text", "")
-            else:
-                text_val = getattr(line, "text", "")
-            text = str(text_val).strip()
-            if text:
-                lines.append(text)
-        return "\n".join(lines).strip()

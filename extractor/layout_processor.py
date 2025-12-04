@@ -141,9 +141,6 @@ class LayoutProcessor:
             crop_output_path = cat_dir / crop_name
             cv2.imwrite(str(crop_output_path), crop)
 
-            if category_norm == "table":
-                self._save_table_html(crop_output_path, crop)
-
         annotated_path = page_dir / ANNOTATED_FILENAME
         cv2.imwrite(str(annotated_path), overlay)
         if self.verbose:
@@ -164,17 +161,6 @@ class LayoutProcessor:
             expand = self.crop_expand_px
             white_pad_axes = (False, expand[1] > 5)
         return self._extract_expanded_crop(image, bbox, expand, white_pad_axes)
-
-    def _save_table_html(self, crop_output_path: Path, crop: np.ndarray) -> None:
-        table_html = None
-        try:
-            table_html = self.client.recognize_table(crop)
-        except Exception as exc:  # pragma: no cover - network/IO heavy
-            if self.verbose:
-                print(f"Table recognition failed for {crop_output_path.name}: {exc}")
-        if table_html:
-            html_path = crop_output_path.with_suffix(".html")
-            html_path.write_text(table_html, encoding="utf-8")
 
     @staticmethod
     def _iter_image_files(folder_path: Path) -> List[Path]:
@@ -236,7 +222,7 @@ class LayoutProcessor:
             crop = LayoutProcessor._extract_expanded_crop(
                 image,
                 bbox,
-                base_expand,
+                base_expand, 
                 (False, False),
             )
             if crop is None:

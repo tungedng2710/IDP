@@ -1,123 +1,129 @@
-## Extractor Utilities
+## Document Layout Extractor
 
-The `extractor` package bundles several small tools that sit on top of Surya OCR
-and PaddleOCR. The refactored layout stack is split across a few focused modules:
+This repository contains a stripped-down document-processing pipeline that performs three steps:
 
-- `ocr_client.py` — thin HTTP client for Surya OCR + the standalone table API.
-- `layout_processor.py` — converts layout detections into annotated pages and per-element crops.
-- `dotocr.py` — CLI entrypoint that wires the pieces together.
+1. Predict page orientation with PaddleOCR’s `DocImgOrientationClassification`.
+2. Rotate the PDF so that every page is upright and render each page to PNG.
+3. Send the rendered pages to a Surya layout server, draw the detected regions, and save a crop for every element.
 
-This structure makes it easy to script against the pipeline or just invoke it from the command line.
+The goal is to keep the system minimal: you specify **only** the input PDF and an output directory, and the repo handles the orientation correction, layout classification, and crop export. Text OCR, table readers, and stamp removal have been removed so you can add those pieces manually if needed.
 
-### CLI Usage
+---
+
+### Components
+
+| Path | Purpose |
+| --- | --- |
+| `extractor/main.py` | Main pipeline orchestration (PDF → rotation → rendered pages → layout crops). |
+| `extractor/layout_processor.py` | Converts layout detections into annotated pages and per-category crop folders. |
+| `extractor/ocr_client.py` | Minimal HTTP client for the Surya layout endpoint (`/get-layout`). |
+| `extractor/ocr_service.py` | Utility CLI to hit the layout service directly with raw images. |
+| `run_pipeline.sh` | Convenience wrapper that calls `extractor/main.py` with environment overrides. |
+
+---
+
+### Requirements
+
+* Python 3.10+
+* `pip install -r requirements.txt`
+* A running Surya layout service (defaults to `http://localhost:9667/get-layout`)
+* GPU is optional but recommended for PaddleOCR if you process large PDFs
+
+Make sure the Surya server is reachable from the machine running this repo; otherwise `OCRServiceClient` will raise on its POST requests.
+
+---
+
+### Quick Start
 
 ```bash
-python extractor/dotocr.py --image /path/to/page.png --output_dir /desired/output
+# Rotate a PDF and emit layout crops under ./outputs
+python extractor/main.py test_samples/mwg2025.pdf outputs
 
-python extractor/dotocr.py --input_dir /path/to/pages \
-    --base_url http://localhost:9667 \
-    --table_url http://localhost:9671/get-table
+# Equivalent helper
+./run_pipeline.sh test_samples/mwg2025.pdf outputs
 ```
 
-Key options:
+`extractor/main.py` always writes files inside the provided output directory:
 
-- `--image` processes a single page.
-- `--input_dir` iterates all supported image files inside a folder.
-- `--output_dir` controls where annotated pages + crops are stored (defaults to `/tmp/dotocr_pages`).
-- `--table_url` toggles table recognition; provide an empty string to skip HTML generation.
-- `--quiet` suppresses progress logging.
+```
+outputs/
+├── mwg2025_regularized.pdf                # rotated PDF
+└── mwg2025_regularized_pages/             # rendered pages + layout crops
+    ├── page_01/
+    │   ├── annotated.png                  # page with boxes + labels
+    │   └── crop_elements/
+    │       ├── title/page_01_0001.png
+    │       ├── table/page_01_0002.png
+    │       └── ...
+    └── page_02/
+        └── ...
+```
+
+- Each page folder is zero-padded (`page_01`, `page_02`, …).
+- Crops are organized by normalized category (`crop_elements/<category>/`).
+- `annotated.png` uses OpenCV to draw red rectangles and category labels on the original page.
+
+---
+
+### Pipeline Details
+
+1. **Orientation classification** — PaddleOCR predicts per-page angles. The defaults are baked into `extractor/main.py`:
+   - Model: `PP-LCNet_x1_0_doc_ori`
+   - Batch size: `1`
+2. **Rotation** — `extractor.preprocess.regularize_pdf` rewrites the PDF so every page is upright, producing `<input>_regularized.pdf`.
+3. **Rendering** — PyMuPDF renders PNG pages at a dynamic scale so the longest side is ~1800 px (consistent context for Surya).
+4. **Layout detection** — `OCRServiceClient.layout` POSTs each PNG to the Surya `/get-layout` endpoint.
+5. **Crop saving** — `LayoutProcessor` draws boxes, expands each bbox slightly (30 px x/y for non-tables, 5 px for tables), pads overflow with white, and saves each crop plus the annotated page.
+
+If a detection’s bbox cannot be normalized or yields an empty crop, it is skipped. All log statements stream to stdout.
+
+---
+
+### Layout-only CLI
+
+When you have pre-rendered PNGs and only want the layout portion, use `extractor/ocr_service.py`:
+
+```bash
+python extractor/ocr_service.py \
+  --input_dir outputs/mwg2025_regularized_pages \
+  --output_dir outputs/layout_only \
+  --base_url http://localhost:9667 \
+  --quiet   # optional
+
+python extractor/ocr_service.py \
+  --image test_samples/bol1.png \
+  --output_dir outputs/single_page
+```
+
+Options:
+
+- `--image` or `--input_dir` (mutually exclusive) point to supported image files (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`).
+- `--output_dir` overrides the crop destination (defaults to the temp dir defined in `layout_processor.py`).
+- `--base_url` sets the Surya service base URL.
+- `--quiet` suppresses progress logs.
+
+---
 
 ### Programmatic Usage
 
 ```python
 from pathlib import Path
-from extractor import DotsOCRClient, LayoutProcessor
+from extractor.ocr_client import OCRServiceClient
+from extractor.layout_processor import LayoutProcessor
 
-client = DotsOCRClient(base_url="http://localhost:9667")
-processor = LayoutProcessor(client=client, output_dir=Path("./outputs"))
-processor.process_folder(Path("./scans"))
+client = OCRServiceClient(base_url="http://localhost:9667")
+processor = LayoutProcessor(client=client, output_dir=Path("outputs"))
+processor.process_folder(Path("outputs/mwg2025_regularized_pages"))
 ```
 
-### Output Structure
+The crop expansion can be customized by passing `crop_expand_px=(w, h)` and `table_crop_expand_px=(w, h)` when creating `LayoutProcessor`.
 
-For each input document a parent folder is created at:
+---
 
-```
-<output_dir>/<document_name>/pages/
-```
+### Troubleshooting
 
-Every page gets its own numbered subdirectory:
+- **Surya service unavailable**: `requests.exceptions.ConnectionError` means the layout endpoint is down or misconfigured. Update `DEFAULT_OCR_BASE_URL` in `extractor/main.py` or pass `--base_url` to `extractor/ocr_service.py`.
+- **Unsupported images**: only the extensions listed in `layout_processor.VALID_EXTENSIONS` are processed.
+- **Empty outputs**: make sure PaddleOCR’s orientation model can read the PDF (corrupted PDFs or encrypted files will fail when opened by PyMuPDF).
 
-```
-page_01/
-    annotated.png
-    crop_elements/
-        text/
-            page-01_0001.png
-        table/
-            page-01_0002.png
-            page-01_0002.html
-        ...
-```
-
-- `annotated.png` is the original page with layout boxes and category labels rendered via OpenCV.
-- `crop_elements/<category>/` stores crops grouped by normalized category names, preserving multiple instances per class.
-- Table crops trigger an extra recognition pass (via `--table_url`) and emit an `.html` file beside the corresponding PNG.
-
-### Cropping Rules
-
-- Non-table regions receive a fixed 10 px expansion before cropping; overflow areas are padded back with white pixels.
-- Tables skip padding to match the detected bounds while still passing the crop through table recognition.
-- Crop expansion settings can be customized by instantiating `LayoutProcessor` directly.
-
-### End-to-end PDF → Markdown
-
-`extractor/main.py` handles PDF rotation, page rendering, DotsOCR layout, and optional Markdown extraction (via Marker):
-
-```bash
-# Regularize orientation, render pages, run DotsOCR, then build a merged markdown
-python extractor/main.py /path/to/input.pdf \
-  --dotocr-base-url http://localhost:7877 \
-  --dotocr-table-url http://localhost:9675/get-table \
-  --extract-markdown \
-  --markdown-output outputs/curated_input_pages/document.md
-```
-
-Key flags:
-- `--skip-dotocr` stops after rotation (no crops/markdown).
-- `--pages-dir` reuses an existing rendered pages folder instead of re-rendering.
-- `--dotocr-output-dir` controls where the `pages/` tree is written.
-- `--extract-markdown` converts every crop to Markdown beside the PNG and merges everything (tables use the emitted `.html`).
-- `--markdown-output` sets the merged Markdown path (defaults to `document.md` under the DotsOCR output root).
-
-### Standalone Markdown Extraction
-
-If you already have DotsOCR crops, run the extractor directly:
-
-```bash
-python extractor/extract_text.py outputs/curated_mwg2025_pages/pages \
-  --output outputs/curated_mwg2025_pages/pages/document.md
-```
-
-Behavior:
-- Skips `picture` by default; add `--skip-category <name>` to ignore more.
-- Processes `page_footer` elements unless OCR returns fewer than 3 digits, which are treated as page numbers and dropped.
-- For tables, copies the `.html` into the merged Markdown and does not OCR.
-- For all other categories, runs Marker on each crop, writes `<crop>.md` next to the PNG, and merges content in page/element order.
-
-### FastAPI Web UI (Port 7876)
-
-A lightweight FastAPI application in `app/app.py` wraps `run_pipeline.sh` with a drag-and-drop style interface that previews the generated Markdown.
-
-1. Install the web dependencies:
-   ```bash
-   pip install fastapi uvicorn python-multipart markdown
-   ```
-2. Make sure any OCR services expected by `run_pipeline.sh` (e.g., DotsOCR + table API) are running.
-3. Launch the server on the requested port:
-   ```bash
-   uvicorn app.app:app --host 0.0.0.0 --port 7876
-   ```
-4. Visit `http://localhost:7876` and upload a PDF. The UI streams the Markdown preview (rendered via the `markdown` package) along with stdout/stderr from the script for quick debugging.
-
-Uploads and generated Markdown files are kept under `web_uploads/` and `web_outputs/` respectively and are cleaned up after each run.
+That’s it—feed in a PDF and tell the pipeline where to write results. Extend or swap in any additional OCR / table / NLP logic on top of the generated crops.

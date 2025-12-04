@@ -23,18 +23,11 @@ __all__ = ["OCRServiceClient", "LayoutProcessor"]
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Run layout inference and table recognition via Surya OCR"
-    )
+    parser = argparse.ArgumentParser(description="Run layout inference via Surya OCR")
     parser.add_argument(
         "--base_url",
         default="http://localhost:7877",
         help="Base URL for the OCR service.",
-    )
-    parser.add_argument(
-        "--table_url",
-        default="http://localhost:9675/get-table",
-        help="Full URL for the table recognition API. Provide an empty string to disable.",
     )
     parser.add_argument(
         "--output_dir",
@@ -55,9 +48,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_client(base_url: str, table_url: Optional[str]) -> OCRServiceClient:
-    clean_table_url = table_url.strip() if table_url else None
-    return OCRServiceClient(base_url=base_url, table_url=clean_table_url)
+def build_client(base_url: str) -> OCRServiceClient:
+    return OCRServiceClient(base_url=base_url)
 
 
 def build_processor(client: OCRServiceClient, output_dir: Optional[str], quiet: bool) -> LayoutProcessor:
@@ -67,7 +59,7 @@ def build_processor(client: OCRServiceClient, output_dir: Optional[str], quiet: 
 
 def main() -> None:
     args = parse_args()
-    client = build_client(args.base_url, args.table_url)
+    client = build_client(args.base_url)
     processor = build_processor(client, args.output_dir, args.quiet)
 
     if args.image:
