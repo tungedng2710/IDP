@@ -20,7 +20,7 @@ services:
       - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:7871/ >/dev/null && curl -sf ${OLLAMA_BASE_URL}/api/version >/dev/null"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:7871/ >/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -48,7 +48,7 @@ services:
       - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:7872/ >/dev/null && curl -sf ${OLLAMA_BASE_URL}/api/version >/dev/null"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:7872/ >/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -80,7 +80,7 @@ services:
       - classify-api
       - extraction-api
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:7865/ >/dev/null && curl -sf ${OLLAMA_BASE_URL}/api/version >/dev/null"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:7865/ >/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 3

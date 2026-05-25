@@ -186,6 +186,12 @@ def _merge_page_extracted_data(page_results: list[dict[str, object]]) -> dict[st
     return merged
 
 
+async def _run_blocking(func, /, *args, **kwargs):
+    loop = asyncio.get_running_loop()
+    call = functools.partial(func, *args, **kwargs)
+    return await loop.run_in_executor(None, call)
+
+
 @classify_app.get("/")
 def classify_health() -> dict[str, str]:
     return {
@@ -210,7 +216,8 @@ async def classify_endpoint(
     temp_path = _prepare_upload_image(file, file_bytes, content_type)
 
     try:
-        document_type, template_filename = classify_document(
+        document_type, template_filename = await _run_blocking(
+            classify_document,
             str(temp_path),
             base_url=ollama_url,
             model=model,
@@ -349,7 +356,8 @@ async def healthcare_pipeline_endpoint(
     try:
         for i, temp_path in enumerate(temp_paths):
             page_num = (page_start + i) if multi_page else page_start
-            result = process_document(
+            result = await _run_blocking(
+                process_document,
                 image_path=str(temp_path),
                 output_dir=str(output_dir),
                 templates_base_dir=templates_dir,
@@ -398,7 +406,7 @@ async def healthcare_pipeline_classify_endpoint(
     )
 
     try:
-        result = pipeline.classify(str(temp_path))
+        result = await _run_blocking(pipeline.classify, str(temp_path))
     finally:
         temp_path.unlink(missing_ok=True)
 
@@ -450,10 +458,8 @@ async def healthcare_pipeline_extraction_endpoint(
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = Path(file.filename or "upload").stem
 
-    loop = asyncio.get_running_loop()
-
     async def _run_extract_pipeline(page_num: int, tp: Path) -> dict[str, object]:
-        fn = functools.partial(
+        data = await _run_blocking(
             extract_information,
             image_path=str(tp),
             prompt_template=prompt_template,
@@ -461,7 +467,6 @@ async def healthcare_pipeline_extraction_endpoint(
             base_url=ollama_url,
             model=extractor_model,
         )
-        data = await loop.run_in_executor(None, fn)
         return {"page": page_num, "extracted_data": data}
 
     page_results: list[dict[str, object]] = []
@@ -510,7 +515,12 @@ async def healthcare_pipeline_classify_batch_endpoint(
     if content_type != "application/pdf":
         temp_path = _prepare_upload_image(file, file_bytes, content_type)
         try:
-            doc_type, _ = classify_document(str(temp_path), base_url=ollama_url, model=classifier_model)
+            doc_type, _ = await _run_blocking(
+                classify_document,
+                str(temp_path),
+                base_url=ollama_url,
+                model=classifier_model,
+            )
         finally:
             temp_path.unlink(missing_ok=True)
         return [{"pages": [1], "document_type": doc_type or "UNKNOWN"}]
@@ -531,7 +541,12 @@ async def healthcare_pipeline_classify_batch_endpoint(
     try:
         for i, temp_path in enumerate(temp_paths):
             page_num = page_start + i
-            doc_type, _ = classify_document(str(temp_path), base_url=ollama_url, model=classifier_model)
+            doc_type, _ = await _run_blocking(
+                classify_document,
+                str(temp_path),
+                base_url=ollama_url,
+                model=classifier_model,
+            )
             page_classifications.append((page_num, doc_type or "UNKNOWN"))
     finally:
         for tp in temp_paths:
@@ -623,7 +638,8 @@ async def healthcare_pipeline_extraction_batch_endpoint(
         page_results: list[dict[str, object]] = []
         try:
             for temp_path, page_num in zip(temp_paths, rendered_page_nums):
-                extracted_data = extract_information(
+                extracted_data = await _run_blocking(
+                    extract_information,
                     image_path=str(temp_path),
                     prompt_template=prompt_template,
                     json_template=json_template,
@@ -660,10 +676,13 @@ async def upload_schema_endpoint(
     version: str = Form(..., description="Template version, e.g. '1' or '1.0'"),
     document_type: str = Form(..., description="Document type name, e.g. 'PHIẾU KHÁM BỆNH VÀO VIỆN'"),
 ) -> dict[str, object]:
-    """Upload a JSON schema template for a given document type and version.
+    """Upload a JSON schema template for a given document type.
 
-    Saves the file to data/prompts/healthcare_types/templates_v{version}/ and
-    updates the doctype_map.json in that folder.
+    Saves the file to data/prompts/healthcare_types/templates_v1/. If the
+    document type already exists in doctype_map.json, only that mapped template
+    file is updated. The map is updated only for new document types. The
+    version input is accepted for compatibility but does not change the
+    destination folder.
     """
     if not file.filename or not file.filename.lower().endswith(".json"):
         raise HTTPException(status_code=400, detail="Uploaded file must be a JSON file (.json)")
@@ -678,12 +697,8 @@ async def upload_schema_endpoint(
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
 
     version_str = str(version).strip()
-    templates_dir = HEALTHCARE_TYPES_DIR / f"templates_v{version_str}"
+    templates_dir = HEALTHCARE_TYPES_DIR / "templates_v1"
     templates_dir.mkdir(parents=True, exist_ok=True)
-
-    template_filename = file.filename
-    template_path = templates_dir / template_filename
-    template_path.write_bytes(file_bytes)
 
     doctype_map_path = templates_dir / "doctype_map.json"
     if doctype_map_path.exists():
@@ -692,14 +707,25 @@ async def upload_schema_endpoint(
     else:
         doctype_map = {}
 
-    doctype_map[document_type] = template_filename
-    doctype_map_path.write_text(json.dumps(doctype_map, ensure_ascii=False, indent=2), encoding="utf-8")
+    uploaded_filename = file.filename
+    existing_template_filename = doctype_map.get(document_type)
+    template_filename = existing_template_filename or uploaded_filename
+    template_path = templates_dir / template_filename
+    template_path.write_bytes(file_bytes)
+
+    doctype_map_updated = existing_template_filename is None
+    if doctype_map_updated:
+        doctype_map[document_type] = template_filename
+        doctype_map_path.write_text(json.dumps(doctype_map, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return {
         "status": "success",
         "version": version_str,
+        "effective_version": "1",
         "document_type": document_type,
+        "uploaded_filename": uploaded_filename,
         "template_filename": template_filename,
         "template_path": str(template_path),
         "doctype_map_path": str(doctype_map_path),
+        "doctype_map_updated": doctype_map_updated,
     }

@@ -26,53 +26,53 @@ EXTRACTOR_MODEL = "gemma4:e4b-it-bf16"  # Can be overridden
 DOCUMENT_TYPES = {
     "PHIẾU KHÁM BỆNH VÀO VIỆN": {
         "json": "page-03.json",
-        "template": "healthcare_types/page-03-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-03-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
     "PHIẾU CHỈ ĐỊNH CẬN LÂM SÀNG": {
         "json": "page-04.json",
-        "template": "healthcare_types/page-04-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-04-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
     "PHIẾU TRẢ KẾT QUẢ HUYẾT HỌC": {
         "json": "page-23.json",
-        "template": "healthcare_types/page-23-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-23-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
     "PHIẾU CHĂM SÓC": {
         "json": "page-24.json",
-        "template": "healthcare_types/page-24-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-24-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
     "PHIẾU THEO DÕI CHỨC NĂNG SỐNG": {
         "json": "page-36.json",
-        "template": "healthcare_types/page-36-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-36-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
     "TỜ ĐIỀU TRỊ": {
         "json": "page-38.json",
-        "template": "healthcare_types/page-38-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-38-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
     "GIẤY RA VIỆN": {
         "json": "page-60.json",
-        "template": "healthcare_types/page-60-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-60-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
     "BẢNG KÊ CHI PHÍ ĐIỀU TRỊ NGOẠI TRÚ": {
         "json": "page-61.json",
-        "template": "healthcare_types/page-61-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-61-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
     "PHIẾU CÔNG KHAI DỊCH VỤ KCB NỘI TRÚ": {
         "json": "page-62.json",
-        "template": "healthcare_types/page-62-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-62-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
     "BỆNH ÁN THẬN NHÂN TẠO": {
         "json": "page-01.json",
-        "template": "healthcare_types/page-01-template.json",
-        "prompt_template": "healthcare_types/prompt_with_template.txt"
+        "template": "healthcare_types/templates_v1/page-01-template.json",
+        "prompt_template": "healthcare_types/templates_v1/prompt_with_template.txt"
     },
 }
 
